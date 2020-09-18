@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <iostream>
+
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
 #include <bsoncxx/document/value.hpp>
@@ -21,12 +23,15 @@
 #include <bsoncxx/string/view_or_value.hpp>
 #include <bsoncxx/test_util/catch.hh>
 
+#include <bsoncxx/config/private/prelude.hh>
+
 namespace {
 using namespace bsoncxx;
 
 using bsoncxx::to_json;
 using bsoncxx::builder::basic::make_document;
 using bsoncxx::builder::basic::kvp;
+
 
 TEST_CASE("document::view_or_value", "[bsoncxx::document::view_or_value]") {
     auto empty = make_document();
@@ -261,5 +266,41 @@ TEST_CASE("string::document::view_or_value", "[bsoncxx::string::view_or_value]")
             }
         }
     }
+
 }
+
+TEST_CASE("testing person") {
+    document::Person expected_person{
+        "Lelouch",
+        "Lamperouge",
+        18,
+    };
+
+    document::value bson_object(expected_person);
+//    std::cout << expected_person.first_name << "\n";
+}
+
 }  // namespace
+
+//namespace bsoncxx {
+//BSONCXX_INLINE_NAMESPACE_BEGIN
+//namespace document {
+
+//struct Person {
+//    std::string first_name;
+//    std::string last_name;
+//    int age;
+//    //    std::vector<std::string> favorite_colors;
+//};
+
+//void to_bson(const Person& person, value& bson_object) {
+//    // Include the members and values of the Person you'd like to turn into a BSON object
+//    bson_object = make_document(kvp("first_name", person.first_name),
+//                                kvp("last_name", person.last_name),
+//                                kvp("age", person.age));
+//}
+
+//} // namespace document
+//BSONCXX_INLINE_NAMESPACE_END
+//} // namespace bsoncxx
+

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/document/value.hpp>
 
 #include <utility>
@@ -47,6 +48,19 @@ value& value::operator=(const value& rhs) {
     *this = value{rhs.view()};
     return *this;
 }
+
+template<typename T>
+value::value(T user_object) {
+//    builder::basic::document doc;
+//    to_bson(user_object, doc);
+//    value(doc.view());
+}
+
+//template<typename T>
+//value value::operator=(T& user_object) {
+//    to_bson(user_object, *this);
+//    return *this;
+//}
 
 value::unique_ptr_type value::release() {
     _length = 0;

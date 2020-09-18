@@ -18,8 +18,15 @@
 #include <memory>
 
 #include <bsoncxx/document/view.hpp>
+#include <bsoncxx/builder/basic/document.hpp>
+#include <bsoncxx/builder/basic/kvp.hpp>
+
+#include <bsoncxx/json.hpp>
 
 #include <bsoncxx/config/prelude.hpp>
+
+using bsoncxx::builder::basic::kvp;
+using bsoncxx::builder::basic::make_document;
 
 namespace bsoncxx {
 BSONCXX_INLINE_NAMESPACE_BEGIN
@@ -30,6 +37,15 @@ namespace document {
 /// out of scope, the underlying buffer is freed. Generally this class should be used
 /// sparingly; document::view should be used instead wherever possible.
 ///
+
+struct Person {
+    std::string first_name;
+    std::string last_name;
+    int age;
+    //    std::vector<std::string> favorite_colors;
+};
+
+
 class BSONCXX_API value {
    public:
     using deleter_type = void (*)(std::uint8_t*);
@@ -76,6 +92,14 @@ class BSONCXX_API value {
     value(value&&) noexcept = default;
     value& operator=(value&&) noexcept = default;
 
+    // Serialization of user's object
+    template<typename T>
+    explicit value(T user_object);
+//    template<typename T>
+//    value operator=(T& user_object);
+//    template<typename T>
+//    explicit value(T& user_object);
+
     ///
     /// Get a view over the document owned by this value.
     ///
@@ -87,6 +111,11 @@ class BSONCXX_API value {
     /// @return A view over the value.
     ///
     BSONCXX_INLINE operator document::view() const noexcept;
+
+    template<typename T>
+    void get() {
+        T::from_bson();
+    }
 
     ///
     /// Transfer ownership of the underlying buffer to the caller.
@@ -109,6 +138,14 @@ class BSONCXX_API value {
     unique_ptr_type _data;
     std::size_t _length{0};
 };
+
+void to_bson(const Person& person, value& bson_object) {
+    // Include the members and values of the Person you'd like to turn into a BSON object
+//    bson_object = builder::basic::make_document(kvp("first_name", person.first_name),
+//                                kvp("last_name", person.last_name),
+//                                kvp("age", person.age));
+    bson_object = from_json("");
+}
 
 BSONCXX_INLINE document::view value::view() const noexcept {
     return document::view{static_cast<uint8_t*>(_data.get()), _length};
