@@ -23,6 +23,13 @@
 
 namespace bsoncxx {
 BSONCXX_INLINE_NAMESPACE_BEGIN
+
+namespace builder {
+namespace basic {
+class document;
+}
+}
+
 namespace document {
 
 ///
@@ -76,6 +83,11 @@ class BSONCXX_API value {
     value(value&&) noexcept = default;
     value& operator=(value&&) noexcept = default;
 
+//    template<typename T>
+//    explicit value(T& user_object) {
+//        to_bson(user_object, *this);
+//    }
+
     ///
     /// Get a view over the document owned by this value.
     ///
@@ -87,6 +99,14 @@ class BSONCXX_API value {
     /// @return A view over the value.
     ///
     BSONCXX_INLINE operator document::view() const noexcept;
+
+    // Function to help with serialization
+    template<typename T>
+    T get() {
+        T temp_object{};
+        from_bson(temp_object, this->view());
+        return temp_object;
+    }
 
     ///
     /// Transfer ownership of the underlying buffer to the caller.
