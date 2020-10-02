@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <string>
+#include <iostream>
 
 #include <bsoncxx/builder/basic/array.hpp>
 #include <bsoncxx/builder/basic/document.hpp>
@@ -31,25 +32,6 @@ using builder::basic::make_document;
 namespace {
 
 namespace test {
-
-struct Person {
-    std::string first_name;
-    std::string last_name;
-    int age;
-};
-
-// to_bson serializer function that can take a document::value&
-void to_bson(const Person& person, bsoncxx::document::value& bson_object) {
-    bson_object = make_document(kvp("first_name", person.first_name),
-                                kvp("last_name", person.last_name),
-                                kvp("age", person.age));
-}
-
-void from_bson(Person& person, const bsoncxx::document::view& bson_object) {
-    bson_object["first_name"].get_value().to_field(person.first_name);
-    bson_object["last_name"].get_value().to_field(person.last_name);
-    bson_object["age"].get_value().to_field(person.age);
-}
 
 class Car {
    public:
@@ -81,6 +63,43 @@ class Car {
     std::string _model;
 };
 
+struct Person {
+    std::string first_name;
+    std::string last_name;
+    int age;
+    Car* car;
+};
+
+// to_bson serializer function that can take a document::value&
+void to_bson(const Person& person, bsoncxx::document::value& bson_object) {
+    bson_object = make_document(kvp("first_name", person.first_name),
+                                kvp("last_name", person.last_name),
+                                kvp("age", person.age),
+                                kvp("car", document::value(*(person.car))));
+}
+
+void from_bson(Person& person, const bsoncxx::document::view& bson_object) {
+    bson_object["first_name"].get_value().to_field(person.first_name);
+    bson_object["last_name"].get_value().to_field(person.last_name);
+    bson_object["age"].get_value().to_field(person.age);
+
+    person.car = new Car;
+    bson_object["car"].get_value().to_field(*(person.car));
+}
+
+// Helper functions for testing
+void compare_car_with_car(const Car& c1, const Car& c2) {
+    REQUIRE(c1.get_model() == c2.get_model());
+    REQUIRE(c1.get_manufacturer() == c2.get_manufacturer());
+}
+
+void compare_person_with_person(const Person& p1, const Person& p2) {
+    REQUIRE(p1.first_name == p2.first_name);
+    REQUIRE(p1.last_name == p2.last_name);
+    REQUIRE(p1.age == p2.age);
+    compare_car_with_car(*(p1.car), *(p2.car));
+}
+
 // Class that uses most BSON Types
 class Types_Test_Object {
    public:
@@ -97,7 +116,8 @@ class Types_Test_Object {
                       std::string&& m_regex_string,
                       std::string&& m_regex_options,
                       uint32_t m_timestamp_increment,
-                      uint32_t m_timestamp_timestamp)
+                      uint32_t m_timestamp_timestamp,
+                      Person& m_person)
         : m_double(m_double),
           m_utf8(std::move(m_utf8)),
           m_bool(m_bool),
@@ -109,7 +129,8 @@ class Types_Test_Object {
           m_regex_string(std::move(m_regex_string)),
           m_regex_options(std::move(m_regex_options)),
           m_timestamp_increment(m_timestamp_increment),
-          m_timestamp_timestamp(m_timestamp_timestamp) {}
+          m_timestamp_timestamp(m_timestamp_timestamp),
+          m_person(m_person) {}
 
     // Getters
     double getDouble() const {
@@ -148,6 +169,9 @@ class Types_Test_Object {
     uint32_t getTimestampTimestamp() const {
         return m_timestamp_timestamp;
     }
+    Person getPerson() const {
+        return m_person;
+    }
 
     friend void to_bson(const Types_Test_Object& user_object,
                         bsoncxx::document::value& bson_object) {
@@ -163,7 +187,8 @@ class Types_Test_Object {
             kvp("_regex", types::b_regex{user_object.m_regex_string, user_object.m_regex_options}),
             kvp("_timestamp",
                 types::b_timestamp{user_object.m_timestamp_increment,
-                                   user_object.m_timestamp_timestamp}));
+                                   user_object.m_timestamp_timestamp}),
+            kvp("_person", document::value(user_object.m_person)));
     }
 
     friend void from_bson(Types_Test_Object& user_object,
@@ -180,6 +205,7 @@ class Types_Test_Object {
                                                     user_object.m_regex_options);
         bson_object["_timestamp"].get_value().to_fields(user_object.m_timestamp_increment,
                                                         user_object.m_timestamp_timestamp);
+        bson_object["_person"].get_value().to_field(user_object.m_person);
     }
 
    private:
@@ -200,43 +226,11 @@ class Types_Test_Object {
     // Timestamp
     uint32_t m_timestamp_increment = 0;
     uint32_t m_timestamp_timestamp = 0;
+
+    Person m_person;
 };
 
 }  // namespace test
-
-TEST_CASE("Convert between Person struct and BSON object") {
-    test::Person expected_person{
-        "Lelouch", "Lamperouge", 18,
-    };
-
-    bsoncxx::document::value expected_doc =
-        make_document(kvp("first_name", expected_person.first_name),
-                      kvp("last_name", expected_person.last_name),
-                      kvp("age", expected_person.age));
-    auto expected_view = expected_doc.view();
-
-    SECTION("Conversion from BSON object to Person struct works") {
-        // BSON object -> Person
-        test::Person test_person = expected_doc.get<test::Person>();
-
-        REQUIRE(test_person.first_name == expected_person.first_name);
-        REQUIRE(test_person.last_name == expected_person.last_name);
-        REQUIRE(test_person.age == expected_person.age);
-    }
-
-    SECTION("Conversion from Person struct to document::value works") {
-        // Person -> BSON object
-        bsoncxx::document::value test_value{expected_person};
-        auto test_view = test_value.view();
-
-        REQUIRE(string::to_string(test_view["first_name"].get_string().value) ==
-                expected_person.first_name);
-        REQUIRE(string::to_string(test_view["last_name"].get_string().value) ==
-                expected_person.last_name);
-        REQUIRE(test_view["age"].get_int32() == expected_person.age);
-        REQUIRE(test_view == expected_view);
-    }
-}
 
 TEST_CASE("Convert between Car class and BSON object") {
     test::Car expected_car{"Tesla", "Model S"};
@@ -260,13 +254,61 @@ TEST_CASE("Convert between Car class and BSON object") {
     SECTION("BSON to Car works") {
         // BSON -> Car
         test::Car test_car = expected_value.get<test::Car>();
+        test::compare_car_with_car(test_car, expected_car);
+    }
+}
 
-        REQUIRE(test_car.get_manufacturer() == expected_car.get_manufacturer());
-        REQUIRE(test_car.get_model() == expected_car.get_model());
+TEST_CASE("Convert between Person struct and BSON object") {
+    test::Car expected_car = {
+        "Knightmare",
+        "Shinkiro"
+    };
+    test::Person expected_person{
+        "Lelouch", "Lamperouge", 18, &expected_car
+    };
+    bsoncxx::document::value expected_doc =
+        make_document(kvp("first_name", expected_person.first_name),
+                      kvp("last_name", expected_person.last_name),
+                      kvp("age", expected_person.age),
+                      kvp("car", document::value(expected_car)));
+    auto expected_view = expected_doc.view();
+
+    SECTION("Conversion from Person struct to document::value works") {
+        // Person -> BSON object
+        document::value test_value{expected_person};
+        auto test_view = test_value.view();
+
+        REQUIRE(string::to_string(test_view["first_name"].get_string().value) ==
+                expected_person.first_name);
+        REQUIRE(string::to_string(test_view["last_name"].get_string().value) ==
+                expected_person.last_name);
+        REQUIRE(test_view["age"].get_int32() == expected_person.age);
+
+        document::value expected_car_value{expected_car};
+        REQUIRE(test_view["car"].get_document().view() == expected_car_value.view());
+
+        REQUIRE(test_view == expected_view);
+    }
+
+    SECTION("Conversion from BSON object to Person struct works") {
+        // BSON object -> Person
+        test::Person test_person = expected_doc.get<test::Person>();
+        test::compare_person_with_person(test_person, expected_person);
     }
 }
 
 TEST_CASE("Test out different BSON types for serialization") {
+    test::Car expected_car = {
+        "Test",
+        "Car"
+    };
+    test::Person expected_person = {
+        "Alice",
+        "Bob",
+        42,
+        &expected_car
+    };
+    document::value expected_person_doc{expected_person};
     test::Types_Test_Object expected_tto = {4.2,
                                             "utf8",
                                             false,
@@ -278,7 +320,8 @@ TEST_CASE("Test out different BSON types for serialization") {
                                             "^foo|bar$",
                                             "i",
                                             100,
-                                            1000};
+                                            1000,
+                                            expected_person};
     bsoncxx::document::value expected_value = make_document(
         kvp("_double", types::b_double{expected_tto.getDouble()}),
         kvp("_utf8", types::b_utf8{expected_tto.getUtf8()}),
@@ -292,7 +335,8 @@ TEST_CASE("Test out different BSON types for serialization") {
             types::b_regex{expected_tto.getRegexString(), expected_tto.getRegexOptions()}),
         kvp("_timestamp",
             types::b_timestamp{expected_tto.getTimestampIncrement(),
-                               expected_tto.getTimestampTimestamp()}));
+                               expected_tto.getTimestampTimestamp()}),
+        kvp("_person", document::value(expected_person)));
 
     SECTION("Types_Test_Object to BSON object serialization") {
         bsoncxx::document::value test_value{expected_tto};
@@ -317,6 +361,9 @@ TEST_CASE("Test out different BSON types for serialization") {
         REQUIRE(test_tto.getRegexOptions() == expected_tto.getRegexOptions());
         REQUIRE(test_tto.getTimestampIncrement() == expected_tto.getTimestampIncrement());
         REQUIRE(test_tto.getTimestampTimestamp() == expected_tto.getTimestampTimestamp());
+
+        // Check nested objects
+        test::compare_person_with_person(test_tto.getPerson(), expected_tto.getPerson());
     }
 }
 }  // namespace
