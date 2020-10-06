@@ -276,10 +276,18 @@ class BSONCXX_API view {
     void to_field(T& object_field) {
         _to_field(object_field);
     }
+
+    // Serializer function for arrays
     template <typename T>
-    void to_field(T* object_field_ptr) {
-        _to_field(object_field_ptr);
+    void to_field(T object_field[]) {
+        array::view arr = _b_array.value;
+        int size = std::distance(arr.cbegin(), arr.cend());
+
+        for (int i = 0; i < size; i++) {
+            arr[i].get_value().to_field(object_field[i]);
+        }
     }
+
     // Serializer function for BSON type structs that have more than one member
     template <typename T, typename U>
     void to_fields(T& object_field1, U& object_field2) {
@@ -304,10 +312,9 @@ class BSONCXX_API view {
     void _to_field(bool& object_field) const;
 
     // This should be used when T is another object within a user's object
-    template<typename T>
+    template <typename T>
     void _to_field(T& object_field) const {
-        document::view temp_view = _b_document.value;
-        document::value temp_value{temp_view};
+        document::value temp_value{_b_document.value};
         from_bson(object_field, temp_value);
     }
 
